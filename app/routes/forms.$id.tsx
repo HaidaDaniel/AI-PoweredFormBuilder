@@ -1,10 +1,19 @@
-import { Form, useLoaderData, useActionData, useNavigation } from "react-router";
-import { useState, useEffect } from "react";
+import { Form, useLoaderData, useActionData, useNavigation, useNavigate, useSubmit } from "react-router";
+import { useState, useEffect, useMemo } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { prisma } from "~/db/db.server";
 import { generateFormSchema } from "~/domain/form.schema";
+import { Card } from "~/components/ui/Card";
+import { Button } from "~/components/ui/Button";
+import { FormFieldInput } from "~/components/forms/FormFieldInput";
+import { ConfirmationModal } from "~/components/forms/ConfirmationModal";
+import { SuccessModal } from "~/components/forms/SuccessModal";
 import type { Route } from "./+types/forms.$id";
+import { toast } from "sonner";
+import type { FormField } from "@prisma/client";
 
-export async function loader({ request, params }: Route.LoaderArgs) {
+export async function loader({ params }: Route.LoaderArgs) {
   const form = await prisma.form.findFirst({
     where: { id: params.id, published: true },
     include: {
@@ -52,6 +61,7 @@ export async function action({ request, params }: Route.ActionArgs) {
       });
       return { success: true };
     } catch (error) {
+      toast.error("Failed to save response: " + (error as Error).message);
       return { error: "Failed to save response" };
     }
   }
@@ -80,7 +90,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     if (!result.success) {
       // Return validation errors
       const fieldErrors: Record<string, string> = {};
-      for (const error of result.error.errors) {
+      for (const error of result.error.issues) {
         const fieldId = error.path[0];
         if (typeof fieldId === "string") {
           fieldErrors[fieldId] = error.message;
@@ -100,30 +110,89 @@ export default function FormFillPage() {
   const { form } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
+  const navigate = useNavigate();
+  const submit = useSubmit();
   const [showModal, setShowModal] = useState(false);
+  const [showCongratulationsModal, setShowCongratulationsModal] = useState(false);
   const [submittedValues, setSubmittedValues] = useState<Record<string, unknown> | null>(null);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState<boolean>(false);
+
+  // Generate Zod schema from form fields
+  const formSchema = useMemo(() => generateFormSchema(form.fields), [form.fields]);
+
+  // React Hook Form setup
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    trigger,
+    reset,
+    watch,
+  } = useForm({
+    resolver: zodResolver(formSchema),
+    mode: "onSubmit",
+    reValidateMode: "onChange",
+    defaultValues: useMemo(() => {
+      const defaults: Record<string, unknown> = {};
+      for (const field of form.fields) {
+        defaults[field.id] = field.type === "number" ? null : "";
+      }
+      return defaults;
+    }, [form.fields]),
+  });
+
+  // Reset form when actionData changes (after successful submission)
+  useEffect(() => {
+    if (actionData && "success" in actionData && actionData.success) {
+      reset();
+      setHasAttemptedSubmit(false);
+    }
+  }, [actionData, reset]);
 
   // Show modal when confirmation is needed
   useEffect(() => {
     if (actionData && "confirm" in actionData && actionData.confirm) {
-      setShowModal(true);
-      setSubmittedValues(actionData.values || null);
+      setTimeout(() => {
+        setShowModal(true);
+        setSubmittedValues(actionData.values || null);
+
+      }, 0);
     }
   }, [actionData]);
 
-  // Hide modal on success
+  // Show toast on error
   useEffect(() => {
-    if (actionData && "success" in actionData && actionData.success) {
-      setShowModal(false);
-      setSubmittedValues(null);
+    if (actionData && "error" in actionData && actionData.error) {
+      toast.error(actionData.error);
     }
   }, [actionData]);
+
+  // Show congratulations modal on success
+  useEffect(() => {
+    if (actionData && "success" in actionData && actionData.success) {
+      setTimeout(() => {
+        setShowModal(false);
+        setSubmittedValues(null);
+        setShowCongratulationsModal(true);
+      }, 0);
+    }
+  }, [actionData]);
+
+  // Auto-redirect after 2 seconds when congratulations modal is shown
+  useEffect(() => {
+    if (showCongratulationsModal) {
+      const timer = setTimeout(() => {
+        navigate("/forms");
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [showCongratulationsModal, navigate]);
 
   const isSubmitting = navigation.state === "submitting";
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md p-8">
+    <div className="max-w-2xl mx-auto">
+      <Card variant="elevated" className="p-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
           {form.title}
         </h1>
@@ -131,172 +200,131 @@ export default function FormFillPage() {
           <p className="text-gray-600 dark:text-gray-400 mb-6">{form.description}</p>
         )}
 
-        {actionData && "success" in actionData && actionData.success ? (
-          <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg">
-            <p className="font-medium">Form submitted successfully!</p>
-            <p className="text-sm mt-1">Thank you for your submission.</p>
-          </div>
-        ) : (
+        {!showCongratulationsModal && (
           <>
-            <Form method="post" id="form-fill">
+            <Form
+              method="post"
+              id="form-fill"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setHasAttemptedSubmit(true);
+
+                handleSubmit(
+                  (data) => {
+                    // Form is valid, proceed with submission
+                    const formData = new FormData();
+                    formData.set("intent", "submit");
+
+                    // Add all form values to FormData
+                    for (const field of form.fields) {
+                      const value = data[field.id];
+                      if (value !== undefined && value !== null && value !== "") {
+                        if (field.type === "number") {
+                          formData.set(field.id, String(value));
+                        } else {
+                          formData.set(field.id, String(value));
+                        }
+                      }
+                    }
+
+                    submit(formData, { method: "post" });
+                  },
+                  () => {
+                    // Form validation failed
+                    trigger(); // Trigger validation to show errors
+                  }
+                )();
+              }}
+            >
               <input type="hidden" name="intent" value="submit" />
               <div className="space-y-5">
-                {form.fields.map((field) => {
+                {form.fields.map((field: FormField) => {
+                  // Get error from RHF or server-side validation
                   const fieldError =
-                    actionData && "errors" in actionData
+                    (hasAttemptedSubmit && errors[field.id]?.message) ||
+                    (actionData && "errors" in actionData
                       ? actionData.errors?.[field.id]
-                      : undefined;
+                      : undefined);
                   const fieldValue =
                     actionData && "values" in actionData
                       ? actionData.values?.[field.id]
-                      : undefined;
+                      : watch(field.id);
 
                   return (
-                    <div key={field.id}>
-                      <label
-                        htmlFor={field.id}
-                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                      >
-                        {field.label}
-                        {field.required && <span className="text-red-500 ml-1">*</span>}
-                      </label>
-
-                      {field.type === "text" && (
-                        <input
-                          type="text"
-                          id={field.id}
-                          name={field.id}
-                          required={field.required}
-                          placeholder={field.placeholder || undefined}
-                          minLength={field.minLength || undefined}
-                          maxLength={field.maxLength || undefined}
-                          defaultValue={fieldValue as string | undefined}
-                          className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${
-                            fieldError
-                              ? "border-red-500 dark:border-red-500"
-                              : "border-gray-300 dark:border-gray-600"
-                          }`}
-                        />
-                      )}
-
-                      {field.type === "number" && (
-                        <input
-                          type="number"
-                          id={field.id}
-                          name={field.id}
-                          required={field.required}
-                          placeholder={field.placeholder || undefined}
-                          min={field.min || undefined}
-                          max={field.max || undefined}
-                          step={field.step || undefined}
-                          defaultValue={fieldValue as number | undefined}
-                          className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${
-                            fieldError
-                              ? "border-red-500 dark:border-red-500"
-                              : "border-gray-300 dark:border-gray-600"
-                          }`}
-                        />
-                      )}
-
-                      {field.type === "textarea" && (
-                        <textarea
-                          id={field.id}
-                          name={field.id}
-                          required={field.required}
-                          placeholder={field.placeholder || undefined}
-                          minLength={field.minLength || undefined}
-                          maxLength={field.maxLength || undefined}
-                          rows={field.rows || 4}
-                          defaultValue={fieldValue as string | undefined}
-                          className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${
-                            fieldError
-                              ? "border-red-500 dark:border-red-500"
-                              : "border-gray-300 dark:border-gray-600"
-                          }`}
-                        />
-                      )}
-
-                      {fieldError && (
-                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                          {fieldError}
-                        </p>
-                      )}
-                    </div>
+                    <FormFieldInput
+                      key={field.id}
+                      field={{
+                        id: field.id,
+                        type: field.type,
+                        label: field.label,
+                        required: field.required,
+                        order: field.order,
+                        placeholder: field.placeholder,
+                        minLength: field.minLength,
+                        maxLength: field.maxLength,
+                        min: field.min,
+                        max: field.max,
+                        step: field.step,
+                        rows: field.rows,
+                      }}
+                      value={fieldValue}
+                      error={fieldError}
+                      register={(name: string) => register(name, field.type === "number" ? { valueAsNumber: true } : undefined)}
+                      onBlur={() => {
+                        if (hasAttemptedSubmit) {
+                          trigger(field.id);
+                        }
+                      }}
+                    />
                   );
                 })}
               </div>
 
               {form.fields.length > 0 && (
-                <button
+                <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="mt-8 w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+                  className="mt-8 w-full"
                 >
                   {isSubmitting ? "Submitting..." : "Submit"}
-                </button>
+                </Button>
               )}
             </Form>
 
-            {/* Confirmation Modal */}
             {showModal && submittedValues && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto">
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-                    Confirm Submission
-                  </h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Please review your answers before submitting:
-                  </p>
-                  <div className="space-y-3 mb-6">
-                    {form.fields.map((field) => {
-                      const value = submittedValues[field.id];
-                      return (
-                        <div key={field.id} className="border-b border-gray-200 dark:border-gray-700 pb-2">
-                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            {field.label}
-                          </p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {value === null || value === undefined || value === ""
-                              ? "(empty)"
-                              : String(value)}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="flex gap-3">
-                    <Form method="post" className="flex-1">
-                      <input type="hidden" name="intent" value="confirm" />
-                      <input
-                        type="hidden"
-                        name="valuesJson"
-                        value={JSON.stringify(submittedValues)}
-                      />
-                      <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
-                      >
-                        {isSubmitting ? "Saving..." : "Confirm"}
-                      </button>
-                    </Form>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowModal(false);
-                        setSubmittedValues(null);
-                      }}
-                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <ConfirmationModal
+                isOpen={showModal}
+                onClose={() => {
+                  setShowModal(false);
+                  setSubmittedValues(null);
+                }}
+                fields={form.fields.map((f: FormField) => ({
+                  id: f.id,
+                  type: f.type,
+                  label: f.label,
+                  required: f.required,
+                  order: f.order,
+                  placeholder: f.placeholder,
+                  minLength: f.minLength,
+                  maxLength: f.maxLength,
+                  min: f.min,
+                  max: f.max,
+                  step: f.step,
+                  rows: f.rows,
+                }))}
+                values={submittedValues}
+                isSubmitting={isSubmitting}
+              />
             )}
           </>
         )}
-      </div>
+
+        <SuccessModal
+          isOpen={showCongratulationsModal}
+          onClose={() => setShowCongratulationsModal(false)}
+          onNavigate={() => navigate("/forms")}
+        />
+      </Card>
     </div>
   );
 }

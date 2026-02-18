@@ -95,11 +95,11 @@ export async function requireAdmin(request: Request): Promise<AuthUser> {
 }
 
 /**
- * Destroy the session and redirect to /admin/login
+ * Destroy the session and redirect to home page
  */
 export async function logout(request: Request) {
   const session = await getSession(request);
-  return redirect("/admin/login", {
+  return redirect("/", {
     headers: {
       "Set-Cookie": await destroySession(session),
     },

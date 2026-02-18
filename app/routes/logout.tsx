@@ -2,9 +2,9 @@ import { redirect } from "react-router";
 import { logout } from "~/auth/auth.server";
 import type { Route } from "./+types/logout";
 
-// Redirect GET requests to login page
+// Redirect GET requests to home page
 export async function loader() {
-  return redirect("/admin/login");
+  return redirect("/");
 }
 
 // POST: destroy session and redirect

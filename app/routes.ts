@@ -14,8 +14,10 @@ export default [
   route("logout", "routes/logout.tsx"),
 
   // Public form routes (no authentication required)
-  route("forms", "routes/forms.tsx"),
-  route("forms/:id", "routes/forms.$id.tsx"),
+  layout("routes/public-layout.tsx", [
+    route("forms", "routes/forms.tsx"),
+    route("forms/:id", "routes/forms.$id.tsx"),
+  ]),
 
   // Admin routes (admin role only)
   route("admin/login", "routes/admin.login.tsx"),
@@ -23,7 +25,9 @@ export default [
     ...prefix("admin", [
       index("routes/admin._index.tsx"),
       route("forms", "routes/admin.forms.tsx"),
+      route("forms/manage", "routes/admin.forms.manage.tsx"),
       route("forms/:id", "routes/admin.forms.$id.tsx"),
+      route("results", "routes/admin.results.tsx"),
     ]),
   ]),
 ] satisfies RouteConfig;

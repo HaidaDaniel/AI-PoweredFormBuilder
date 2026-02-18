@@ -1,4 +1,7 @@
 import type { FormFieldData } from "./FormFieldEditor";
+import { FormFieldRenderer } from "./forms/FormFieldRenderer";
+import { Card } from "./ui/Card";
+import { Button } from "./ui/Button";
 
 interface FormPreviewProps {
   title: string;
@@ -9,7 +12,7 @@ interface FormPreviewProps {
 export function FormPreview({ title, description, fields }: FormPreviewProps) {
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md p-8">
+      <Card variant="elevated" className="p-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
           {title}
         </h1>
@@ -25,84 +28,26 @@ export function FormPreview({ title, description, fields }: FormPreviewProps) {
 
         <div className="space-y-5">
           {fields.map((field) => (
-            <PreviewField key={field.id} field={field} />
+            <FormFieldRenderer
+              key={field.id}
+              field={field}
+              disabled={true}
+              mode="preview"
+            />
           ))}
         </div>
 
         {fields.length > 0 && (
-          <button
+          <Button
             type="button"
             disabled
-            className="mt-8 w-full py-2 px-4 bg-blue-600 text-white font-medium rounded-lg opacity-60 cursor-not-allowed"
+            className="mt-8 w-full opacity-60 cursor-not-allowed"
           >
             Submit (preview only)
-          </button>
+          </Button>
         )}
-      </div>
+      </Card>
     </div>
   );
-}
-
-function PreviewField({ field }: { field: FormFieldData }) {
-  const labelEl = (
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-      {field.label}
-      {field.required && <span className="text-red-500 ml-1">*</span>}
-    </label>
-  );
-
-  const inputClasses =
-    "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white";
-
-  switch (field.type) {
-    case "text":
-      return (
-        <div>
-          {labelEl}
-          <input
-            type="text"
-            disabled
-            placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
-            minLength={field.minLength || undefined}
-            maxLength={field.maxLength || undefined}
-            className={inputClasses}
-          />
-        </div>
-      );
-
-    case "number":
-      return (
-        <div>
-          {labelEl}
-          <input
-            type="number"
-            disabled
-            placeholder={field.placeholder || "0"}
-            min={field.min || undefined}
-            max={field.max || undefined}
-            step={field.step || undefined}
-            className={inputClasses}
-          />
-        </div>
-      );
-
-    case "textarea":
-      return (
-        <div>
-          {labelEl}
-          <textarea
-            disabled
-            placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
-            minLength={field.minLength || undefined}
-            maxLength={field.maxLength || undefined}
-            rows={field.rows || 4}
-            className={inputClasses}
-          />
-        </div>
-      );
-
-    default:
-      return null;
-  }
 }
 
