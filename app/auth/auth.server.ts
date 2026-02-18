@@ -95,6 +95,43 @@ export async function requireAdmin(request: Request): Promise<AuthUser> {
 }
 
 /**
+ * Require admin for API/fetch requests that expect JSON.
+ * Returns 401 JSON instead of redirect when not authenticated,
+ * so the client receives JSON rather than HTML (login page).
+ */
+export async function requireAdminApi(request: Request): Promise<AuthUser> {
+  const user = await getUser(request);
+  const wantsJson =
+    request.headers.get("Accept")?.includes("application/json") ?? false;
+
+  if (!user) {
+    if (wantsJson) {
+      throw new Response(
+        JSON.stringify({ error: "Unauthorized", ok: false }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+    throw redirect("/admin/login");
+  }
+  if (user.role !== "admin") {
+    if (wantsJson) {
+      throw new Response(
+        JSON.stringify({ error: "Forbidden", ok: false }),
+        {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+    throw new Response("Forbidden", { status: 403 });
+  }
+  return user;
+}
+
+/**
  * Destroy the session and redirect to home page
  */
 export async function logout(request: Request) {

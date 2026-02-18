@@ -15,10 +15,20 @@ if (!connectionString) {
 const pool = new pg.Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 
+// @ts-expect-error - adapter is supported at runtime; generated client types (prisma-client-js) omit it
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
+}
+
+// Perform LLM startup check (non-blocking)
+if (typeof globalThis !== "undefined") {
+  import("~/utils/llm-startup-check.server")
+    .then((module) => module.performLLMStartupCheck())
+    .catch((err) => {
+      console.error("LLM startup check failed:", err);
+    });
 }
 
 

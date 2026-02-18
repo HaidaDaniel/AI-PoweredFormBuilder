@@ -27,6 +27,7 @@ export default [
       route("forms", "routes/admin.forms.tsx"),
       route("forms/manage", "routes/admin.forms.manage.tsx"),
       route("forms/:id", "routes/admin.forms.$id.tsx"),
+      route("forms/:id/ai-chat", "routes/admin.forms.$id.ai-chat.ts"),
       route("results", "routes/admin.results.tsx"),
     ]),
   ]),

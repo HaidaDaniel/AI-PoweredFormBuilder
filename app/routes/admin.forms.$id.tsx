@@ -1,6 +1,6 @@
-import { Form, Link, useLoaderData, useActionData, useNavigation, useSubmit, useNavigate, redirect, useBlocker } from "react-router";
+import { Form, Link, useLoaderData, useActionData, useNavigation, useSubmit, useNavigate, useFetcher, redirect, useBlocker } from "react-router";
 import { useState, useEffect, useRef } from "react";
-import { requireAdmin } from "~/auth/auth.server";
+import { requireAdmin, requireAdminApi } from "~/auth/auth.server";
 import { prisma } from "~/db/db.server";
 import { FormFieldEditor } from "~/components/FormFieldEditor";
 import type { FormFieldData } from "~/components/FormFieldEditor";
@@ -12,13 +12,19 @@ import { Modal } from "~/components/ui/Modal";
 import { toast } from "sonner";
 import type { Route } from "./+types/admin.forms.$id";
 import type { FormField } from "@prisma/client";
+import { processAIRequest } from "~/services/ai.server";
+import { ChatAssistant, type ChatMessageData } from "~/components/ai/ChatAssistant";
+import type { FormDefinition } from "~/services/llm/types";
+import { isLLMConfigured } from "~/config/llm.server";
+import { FormFieldDefinitionSchema } from "~/domain/ai.schema";
+import { applyRawPatchToFields } from "~/utils/apply-patch.client";
 
 export async function loader({ request, params }: Route.LoaderArgs) {
     const user = await requireAdmin(request);
 
     // Support create mode when id is "new"
     if (params.id === "new") {
-        return { form: null, isCreateMode: true };
+        return { form: null, isCreateMode: true, isLLMConfigured: isLLMConfigured() };
     }
 
     const form = await prisma.form.findFirst({
@@ -32,11 +38,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         throw new Response("Form not found", { status: 404 });
     }
 
-    return { form, isCreateMode: false };
+    return { form, isCreateMode: false, isLLMConfigured: isLLMConfigured() };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
-    const user = await requireAdmin(request);
+    // Use requireAdminApi so fetch requests (AI chat) get JSON errors instead of HTML redirect
+    const user = await requireAdminApi(request);
     const formData = await request.formData();
     const intent = formData.get("intent");
     const isCreateMode = params.id === "new";
@@ -390,11 +397,309 @@ export async function action({ request, params }: Route.ActionArgs) {
         }
     }
 
+    // AI Chat handler - must always return JSON (never throw, to avoid HTML error pages)
+    if (intent === "aiChat") {
+        try {
+            // Check if LLM is configured
+            if (!isLLMConfigured()) {
+                return Response.json({
+                    error: "AI chat is not configured. Please set LLM_PROVIDER and required environment variables.",
+                });
+            }
+
+            // Verify ownership (only in edit mode)
+            if (!isCreateMode) {
+                const form = await prisma.form.findFirst({
+                where: { id: params.id, ownerUserId: user.id },
+                include: {
+                    fields: { orderBy: { order: "asc" } },
+                },
+            });
+
+            if (!form) {
+                return Response.json({ error: "Form not found" });
+            }
+
+            const message = String(formData.get("message") ?? "").trim();
+            if (!message) {
+                return Response.json({ error: "Message is required" });
+            }
+
+            // Use currentFieldsJson from frontend if provided, otherwise fallback to DB
+            const currentFieldsJson = formData.get("currentFieldsJson");
+            const formDefinition: FormDefinition = currentFieldsJson
+                ? {
+                    fields: (JSON.parse(String(currentFieldsJson)) as Array<{
+                        id: string;
+                        type: string;
+                        label: string;
+                        required: boolean;
+                        order: number;
+                        placeholder?: string | null;
+                        minLength?: number | null;
+                        maxLength?: number | null;
+                        min?: number | null;
+                        max?: number | null;
+                        step?: number | null;
+                        rows?: number | null;
+                    }>).map((f) => ({
+                        id: f.id,
+                        type: f.type as "text" | "number" | "textarea",
+                        label: f.label,
+                        required: f.required,
+                        order: f.order,
+                        placeholder: f.placeholder ?? null,
+                        minLength: f.minLength ?? null,
+                        maxLength: f.maxLength ?? null,
+                        min: f.min ?? null,
+                        max: f.max ?? null,
+                        step: f.step ?? null,
+                        rows: f.rows ?? null,
+                    })),
+                }
+                : {
+                    fields: form.fields.map((f: FormField) => ({
+                        id: f.id,
+                        type: f.type as "text" | "number" | "textarea",
+                        label: f.label,
+                        required: f.required,
+                        order: f.order,
+                        placeholder: f.placeholder,
+                        minLength: f.minLength,
+                        maxLength: f.maxLength,
+                        min: f.min,
+                        max: f.max,
+                        step: f.step,
+                        rows: f.rows,
+                    })),
+                };
+
+            try {
+                const aiResponse = await processAIRequest({
+                    message,
+                    formDefinition,
+                });
+
+                if (!aiResponse.success || !aiResponse.formDefinition) {
+                    return Response.json({
+                        error: aiResponse.error || "Failed to process AI request",
+                        rawResponse: aiResponse.rawResponse,
+                    });
+                }
+
+                // Return updated fields without persisting - user must approve in chat to persist
+                return Response.json({
+                    ok: true,
+                    message: "Form updated successfully",
+                    updatedFields: aiResponse.formDefinition.fields,
+                    rawResponse: aiResponse.rawResponse,
+                });
+            } catch (error) {
+                console.error("AI request error:", error);
+                return Response.json({
+                    error:
+                        error instanceof Error
+                            ? error.message
+                            : "Unknown error occurred",
+                });
+            }
+        } else {
+            // In create mode, we can still process the request but only update local state
+            // The actual save will happen when the form is saved
+            const message = String(formData.get("message") ?? "").trim();
+            if (!message) {
+                return Response.json({ error: "Message is required" });
+            }
+
+            // Get current fields from formData (they're stored in localFields on client)
+            const currentFieldsJson = formData.get("currentFieldsJson");
+            if (!currentFieldsJson) {
+                return Response.json({ error: "Current fields are required" });
+            }
+
+            const currentFields = JSON.parse(
+                String(currentFieldsJson)
+            ) as FormFieldData[];
+
+            const formDefinition: FormDefinition = {
+                fields: currentFields.map((f) => ({
+                    id: f.id,
+                    type: f.type,
+                    label: f.label,
+                    required: f.required,
+                    order: f.order,
+                    placeholder: f.placeholder,
+                    minLength: f.minLength,
+                    maxLength: f.maxLength,
+                    min: f.min,
+                    max: f.max,
+                    step: f.step,
+                    rows: f.rows,
+                })),
+            };
+
+            try {
+                const aiResponse = await processAIRequest({
+                    message,
+                    formDefinition,
+                });
+
+                if (!aiResponse.success || !aiResponse.formDefinition) {
+                    return Response.json({
+                        error: aiResponse.error || "Failed to process AI request",
+                        rawResponse: aiResponse.rawResponse,
+                    });
+                }
+
+                // Return the updated fields for client to apply
+                return Response.json({
+                    ok: true,
+                    message: "Form updated successfully",
+                    updatedFields: aiResponse.formDefinition.fields,
+                    rawResponse: aiResponse.rawResponse,
+                });
+            } catch (error) {
+                console.error("AI request error (create mode):", error);
+                return Response.json({
+                    error:
+                        error instanceof Error
+                            ? error.message
+                            : "Unknown error occurred",
+                });
+            }
+        }
+        } catch (error) {
+            // Ensure we always return JSON, never throw (prevents HTML error pages)
+            console.error("AI Chat handler error:", error);
+            return Response.json({
+                error:
+                    error instanceof Error
+                        ? error.message
+                        : "Unknown error occurred",
+            });
+        }
+    }
+
+    // AI Chat Approve - persist approved LLM changes to DB (edit mode only)
+    if (intent === "aiChatApprove") {
+        if (isCreateMode) {
+            return Response.json({ error: "Approve is only for edit mode" });
+        }
+        const form = await prisma.form.findFirst({
+            where: { id: params.id, ownerUserId: user.id },
+            include: { fields: { orderBy: { order: "asc" } } },
+        });
+        if (!form) {
+            return Response.json({ error: "Form not found" });
+        }
+        const approvedFieldsJson = formData.get("approvedFieldsJson");
+        if (!approvedFieldsJson) {
+            return Response.json({ error: "Approved fields are required" });
+        }
+        const approvedFields = JSON.parse(String(approvedFieldsJson)) as Array<{
+            id: string;
+            type: string;
+            label: string;
+            required: boolean;
+            order: number;
+            placeholder?: string | null;
+            minLength?: number | null;
+            maxLength?: number | null;
+            min?: number | null;
+            max?: number | null;
+            step?: number | null;
+            rows?: number | null;
+        }>;
+
+        const currentFields = form.fields;
+        const newFields = approvedFields;
+
+        const fieldsToDelete = currentFields.filter(
+            (cf: FormField) => !newFields.some((nf) => nf.id === cf.id)
+        );
+        const fieldsToAdd = newFields.filter(
+            (nf) => !currentFields.some((cf: FormField) => cf.id === nf.id)
+        );
+        const fieldsToUpdate = newFields
+            .map((nf) => {
+                const cf = currentFields.find((c: FormField) => c.id === nf.id);
+                if (!cf) return null;
+                const hasChanges =
+                    cf.label !== nf.label ||
+                    cf.type !== nf.type ||
+                    cf.required !== nf.required ||
+                    cf.order !== nf.order ||
+                    cf.placeholder !== (nf.placeholder ?? null) ||
+                    cf.minLength !== (nf.minLength ?? null) ||
+                    cf.maxLength !== (nf.maxLength ?? null) ||
+                    cf.min !== (nf.min ?? null) ||
+                    cf.max !== (nf.max ?? null) ||
+                    cf.step !== (nf.step ?? null) ||
+                    cf.rows !== (nf.rows ?? null);
+                if (!hasChanges) return null;
+                return {
+                    fieldId: nf.id,
+                    updates: {
+                        label: nf.label,
+                        type: nf.type,
+                        required: nf.required,
+                        order: nf.order,
+                        placeholder: nf.placeholder ?? null,
+                        minLength: nf.minLength ?? null,
+                        maxLength: nf.maxLength ?? null,
+                        min: nf.min ?? null,
+                        max: nf.max ?? null,
+                        step: nf.step ?? null,
+                        rows: nf.rows ?? null,
+                    },
+                };
+            })
+            .filter(Boolean) as Array<{
+                fieldId: string;
+                updates: Record<string, unknown>;
+            }>;
+
+        const operations: Array<Promise<unknown>> = [];
+        for (const field of fieldsToDelete) {
+            operations.push(prisma.formField.delete({ where: { id: field.id } }));
+        }
+        for (const field of fieldsToAdd) {
+            operations.push(
+                prisma.formField.create({
+                    data: {
+                        formId: form.id,
+                        type: field.type,
+                        label: field.label,
+                        required: field.required,
+                        order: field.order,
+                        placeholder: field.placeholder ?? null,
+                        minLength: field.minLength ?? null,
+                        maxLength: field.maxLength ?? null,
+                        min: field.min ?? null,
+                        max: field.max ?? null,
+                        step: field.step ?? null,
+                        rows: field.rows ?? null,
+                    },
+                })
+            );
+        }
+        for (const { fieldId, updates } of fieldsToUpdate) {
+            operations.push(
+                prisma.formField.update({
+                    where: { id: fieldId },
+                    data: updates,
+                })
+            );
+        }
+        await prisma.$transaction(operations);
+        return Response.json({ ok: true, message: "Changes approved and saved" });
+    }
+
     return { error: "Unknown action" };
 }
 
 export default function FormEditorPage() {
-    const { form, isCreateMode } = useLoaderData<typeof loader>();
+    const { form, isCreateMode, isLLMConfigured } = useLoaderData<typeof loader>();
     const actionData = useActionData<typeof action>();
     const navigation = useNavigation();
     const submit = useSubmit();
@@ -476,6 +781,39 @@ export default function FormEditorPage() {
     const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
     const [titleError, setTitleError] = useState<string | null>(null);
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+    const [showAIChat, setShowAIChat] = useState(false);
+    const [chatMessages, setChatMessages] = useState<ChatMessageData[]>([]);
+    const [aiError, setAiError] = useState<string | null>(null);
+    const [llmPending, setLlmPending] = useState(false);
+    const preLLMStateRef = useRef<FormFieldData[] | null>(null);
+    const [isAILoading, setIsAILoading] = useState(false);
+    const approveFetcher = useFetcher();
+    const lastProcessedApproveRef = useRef<unknown>(null);
+
+    const handleRevertLLM = () => {
+        if (preLLMStateRef.current) {
+            setLocalFields(preLLMStateRef.current);
+            preLLMStateRef.current = null;
+            setLlmPending(false);
+            toast.success("Changes reverted");
+        }
+    };
+
+    const handleApproveLLM = () => {
+        if (isCreateMode) {
+            preLLMStateRef.current = null;
+            setLlmPending(false);
+            toast.success("Changes approved");
+            return;
+        }
+        const formData = new FormData();
+        formData.set("intent", "aiChatApprove");
+        formData.set("approvedFieldsJson", JSON.stringify(localFields));
+        approveFetcher.submit(formData, {
+            method: "post",
+            action: window.location.pathname,
+        });
+    };
 
     // Validation functions
     const validateFormName = (formTitle: string): string | null => {
@@ -782,6 +1120,137 @@ export default function FormEditorPage() {
             setLocalFields(newFields);
         }
     }, [actionData, form, isCreateMode]);
+
+    // Helper to process AI response and apply to form
+    const processAIResponse = (
+        result: {
+            ok?: boolean;
+            error?: string;
+            message?: string;
+            updatedFields?: unknown[];
+            rawResponse?: string;
+        },
+        currentFields: FormFieldData[]
+    ) => {
+        setAiError(null);
+        if (result.error) {
+            setAiError(result.error);
+            setChatMessages((prev) => [
+                ...prev,
+                { role: "error", content: result.error || "Unknown error", timestamp: new Date() },
+            ]);
+            if (result.error === "Unauthorized") {
+                window.location.href = "/admin/login";
+            }
+            return;
+        }
+        if (!result.ok) return;
+
+        const rawFields: unknown[] = Array.isArray(result.updatedFields) ? result.updatedFields : [];
+        const hasValidFieldObjects =
+            rawFields.length > 0 &&
+            rawFields.every(
+                (f) => f && typeof f === "object" && "id" in f && "type" in f && "label" in f
+            );
+
+        let validatedFields: FormFieldData[] = [];
+        const validationErrors: string[] = [];
+
+        if (hasValidFieldObjects) {
+            for (let i = 0; i < rawFields.length; i++) {
+                const parsed = FormFieldDefinitionSchema.safeParse(rawFields[i]);
+                if (parsed.success) {
+                    const f = parsed.data;
+                    validatedFields.push({
+                        id: f.id,
+                        type: f.type,
+                        label: f.label,
+                        required: f.required,
+                        order: f.order,
+                        placeholder: f.placeholder ?? undefined,
+                        minLength: f.minLength ?? undefined,
+                        maxLength: f.maxLength ?? undefined,
+                        min: f.min ?? undefined,
+                        max: f.max ?? undefined,
+                        step: f.step ?? undefined,
+                        rows: f.rows ?? undefined,
+                    });
+                } else {
+                    validationErrors.push(`Field ${i + 1}: ${parsed.error.message}`);
+                }
+            }
+        }
+
+        if (validatedFields.length === 0 && result.rawResponse) {
+            try {
+                const patchedFields = applyRawPatchToFields(currentFields, result.rawResponse);
+                if (patchedFields) validatedFields = patchedFields;
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : "Failed to apply AI changes";
+                setAiError(msg);
+                setChatMessages((prev) => [
+                    ...prev,
+                    { role: "error", content: msg, timestamp: new Date() },
+                ]);
+                return;
+            }
+        }
+
+        if (validationErrors.length > 0 && validatedFields.length === 0) {
+            setAiError(`Invalid field data: ${validationErrors.join("; ")}`);
+            setChatMessages((prev) => [
+                ...prev,
+                {
+                    role: "error",
+                    content: `Invalid field data: ${validationErrors.join("; ")}`,
+                    timestamp: new Date(),
+                },
+            ]);
+        } else if (validatedFields.length > 0) {
+            preLLMStateRef.current = [...currentFields];
+            const sortedFields = validatedFields
+                .sort((a, b) => a.order - b.order)
+                .map((f, idx) => ({ ...f, order: idx }));
+            setLocalFields(sortedFields);
+            setLlmPending(true);
+            setChatMessages((prev) => [
+                ...prev,
+                {
+                    role: "assistant",
+                    content: result.message || "Form updated successfully!",
+                    timestamp: new Date(),
+                },
+            ]);
+            toast.success("AI changes applied. Approve or revert in chat.");
+        }
+    };
+
+    // Process approve fetcher response - clear llmPending on success
+    useEffect(() => {
+        if (
+            approveFetcher.state !== "idle" ||
+            !approveFetcher.data ||
+            lastProcessedApproveRef.current === approveFetcher.data
+        ) {
+            return;
+        }
+        lastProcessedApproveRef.current = approveFetcher.data;
+        const result = approveFetcher.data as { ok?: boolean; error?: string };
+        if (result.ok) {
+            preLLMStateRef.current = null;
+            setLlmPending(false);
+            // Update initialDataRef so hasNoChanges reflects approved state
+            if (initialDataRef.current) {
+                initialDataRef.current = {
+                    ...initialDataRef.current,
+                    fields: localFields.map((f) => ({ ...f })),
+                };
+            }
+            toast.success("Changes approved and saved");
+        } else if (result.error) {
+            toast.error(result.error);
+        }
+    }, [approveFetcher.state, approveFetcher.data, localFields]);
 
     // Check if form is being saved
     const isSaving = navigation.state === 'submitting' && (navigation.formData?.get('intent') === 'saveForm' || navigation.formData?.get('intent') === 'updateForm');
@@ -1234,7 +1703,146 @@ export default function FormEditorPage() {
                 {/* Right: Sidebar (44%) */}
                 <div className="w-[44%] min-h-500 overflow-y-auto bg-white dark:bg-gray-900">
                     <div className="p-6">
-                        {selectedField ? (
+                        {/* Toggle between Field Settings and AI Chat */}
+                        <div className="mb-4 flex gap-2 border-b border-gray-200 dark:border-gray-700 pb-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowAIChat(false)}
+                                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${!showAIChat
+                                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                                    }`}
+                            >
+                                Field Settings
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setShowAIChat(true)}
+                                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${showAIChat
+                                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                                    }`}
+                            >
+                                AI Assistant
+                            </button>
+                        </div>
+
+                        {showAIChat ? (
+                            <div className="flex flex-col min-h-0" style={{ height: 'calc(100vh - 450px)', maxHeight: 'calc(100vh - 450px)' }}>
+                                {!isLLMConfigured ? (
+                                    <div className="flex flex-col items-center justify-center h-full p-6 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900">
+                                        <div className="text-center max-w-md">
+                                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                                                AI Assistant Not Configured
+                                            </h3>
+                                            <p className="text-gray-600 dark:text-gray-400 mb-4">
+                                                Please configure your LLM provider by setting the following environment variables:
+                                            </p>
+                                            <div className="text-left bg-gray-50 dark:bg-gray-800 p-4 rounded-md mb-4">
+                                                <code className="text-sm text-gray-700 dark:text-gray-300">
+                                                    LLM_PROVIDER=ollama<br />
+                                                    OLLAMA_BASE_URL=http://host.docker.internal:11434<br />
+                                                    OLLAMA_MODEL=llama3.2:latest
+                                                </code>
+                                            </div>
+                                            <p className="text-sm text-gray-500 dark:text-gray-500">
+                                                After setting these variables, restart the Docker container.
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-2">
+                                        {llmPending && (
+                                            <div className="flex-shrink-0 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                                                <p className="text-sm text-amber-800 dark:text-amber-200 mb-2">
+                                                    AI changes are pending. Approve to save or revert to restore.
+                                                </p>
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        type="button"
+                                                        variant="secondary"
+                                                        onClick={handleRevertLLM}
+                                                        className="text-sm"
+                                                    >
+                                                        Revert
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="primary"
+                                                        onClick={handleApproveLLM}
+                                                        disabled={approveFetcher.state !== "idle"}
+                                                        className="text-sm"
+                                                    >
+                                                        {approveFetcher.state !== "idle"
+                                                            ? "Saving..."
+                                                            : "Approve"}
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div className="flex-1 min-h-0 overflow-hidden">
+                                        <ChatAssistant
+                                            onSendMessage={async (message: string) => {
+                                                setAiError(null);
+                                                setChatMessages((prev) => [
+                                                    ...prev,
+                                                    {
+                                                        role: "user",
+                                                        content: message,
+                                                        timestamp: new Date(),
+                                                    },
+                                                ]);
+                                                setIsAILoading(true);
+                                                const formData = new FormData();
+                                                formData.set("message", message);
+                                                formData.set(
+                                                    "currentFieldsJson",
+                                                    JSON.stringify(localFields)
+                                                );
+                                                try {
+                                                    const aiChatUrl =
+                                                        window.location.pathname + "/ai-chat";
+                                                    const res = await fetch(aiChatUrl, {
+                                                        method: "POST",
+                                                        body: formData,
+                                                        credentials: "same-origin",
+                                                    });
+                                                    const result = (await res.json()) as {
+                                                        ok?: boolean;
+                                                        error?: string;
+                                                        message?: string;
+                                                        updatedFields?: unknown[];
+                                                        rawResponse?: string;
+                                                    };
+                                                    processAIResponse(result, localFields);
+                                                } catch (err) {
+                                                    const msg =
+                                                        err instanceof Error
+                                                            ? err.message
+                                                            : "Request failed";
+                                                    setAiError(msg);
+                                                    setChatMessages((prev) => [
+                                                        ...prev,
+                                                        {
+                                                            role: "error",
+                                                            content: msg,
+                                                            timestamp: new Date(),
+                                                        },
+                                                    ]);
+                                                } finally {
+                                                    setIsAILoading(false);
+                                                }
+                                            }}
+                                            messages={chatMessages}
+                                            isLoading={isAILoading}
+                                            error={aiError}
+                                            disabled={false}
+                                        />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : selectedField ? (
                             <>
                                 <div className="mb-4">
                                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
