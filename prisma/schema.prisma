@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         String   @default("user") // "admin" | "user"
+  createdAt    DateTime @default(now())
+  forms        Form[]
+}
+
+model Form {
+  id          String         @id @default(uuid())
+  title       String
+  description String?
+  published   Boolean        @default(false)
+  ownerUserId String
+  owner       User           @relation(fields: [ownerUserId], references: [id])
+  fields      FormField[]
+  responses   FormResponse[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model FormField {
+  id          String   @id @default(uuid())
+  formId      String
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  type        String   // "text" | "number" | "textarea"
+  label       String
+  required    Boolean  @default(false)
+  order       Int
+  placeholder String?
+  minLength   Int?
+  maxLength   Int?
+  min         Float?
+  max         Float?
+  step        Float?
+  rows        Int?
+}
+
+model FormResponse {
+  id        String   @id @default(uuid())
+  formId    String
+  form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  valuesJson Json
+  createdAt DateTime @default(now())
+}
+
