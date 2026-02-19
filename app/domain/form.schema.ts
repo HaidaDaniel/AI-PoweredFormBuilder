@@ -10,53 +10,44 @@ export function generateFormSchema(fields: FormField[]) {
   const schemaObject: Record<string, z.ZodTypeAny> = {};
 
   for (const field of fields) {
-    let fieldSchema: z.ZodTypeAny;
+    let fieldSchema: z.ZodString | z.ZodNumber;
 
     switch (field.type) {
-      case "text":
-        fieldSchema = z.string();
+      case "text": {
+        let textSchema: z.ZodString = z.string();
         if (field.minLength != null) {
-          fieldSchema = fieldSchema.min(field.minLength, {
-            message: `Minimum length is ${field.minLength} characters`,
-          });
+          textSchema = textSchema.min(field.minLength, `Minimum length is ${field.minLength} characters`);
         }
         if (field.maxLength != null) {
-          fieldSchema = fieldSchema.max(field.maxLength, {
-            message: `Maximum length is ${field.maxLength} characters`,
-          });
+          textSchema = textSchema.max(field.maxLength, `Maximum length is ${field.maxLength} characters`);
         }
+        fieldSchema = textSchema;
         break;
+      }
 
-      case "number":
-        fieldSchema = z.number({
-          required_error: "This field is required",
-          invalid_type_error: "Must be a number",
-        });
+      case "number": {
+        let numberSchema: z.ZodNumber = z.number();
         if (field.min != null) {
-          fieldSchema = fieldSchema.min(field.min, {
-            message: `Minimum value is ${field.min}`,
-          });
+          numberSchema = numberSchema.min(field.min, `Minimum value is ${field.min}`);
         }
         if (field.max != null) {
-          fieldSchema = fieldSchema.max(field.max, {
-            message: `Maximum value is ${field.max}`,
-          });
+          numberSchema = numberSchema.max(field.max, `Maximum value is ${field.max}`);
         }
+        fieldSchema = numberSchema;
         break;
+      }
 
-      case "textarea":
-        fieldSchema = z.string();
+      case "textarea": {
+        let textareaSchema: z.ZodString = z.string();
         if (field.minLength != null) {
-          fieldSchema = fieldSchema.min(field.minLength, {
-            message: `Minimum length is ${field.minLength} characters`,
-          });
+          textareaSchema = textareaSchema.min(field.minLength, `Minimum length is ${field.minLength} characters`);
         }
         if (field.maxLength != null) {
-          fieldSchema = fieldSchema.max(field.maxLength, {
-            message: `Maximum length is ${field.maxLength} characters`,
-          });
+          textareaSchema = textareaSchema.max(field.maxLength, `Maximum length is ${field.maxLength} characters`);
         }
+        fieldSchema = textareaSchema;
         break;
+      }
 
       default:
         // Skip unknown field types
@@ -64,28 +55,18 @@ export function generateFormSchema(fields: FormField[]) {
     }
 
     // Apply required constraint
+    let finalSchema: z.ZodTypeAny;
     if (field.required) {
       if (field.type === "number") {
-        // For numbers, use refine to check if value is provided
-        fieldSchema = fieldSchema.refine((val) => val != null, {
-          message: "This field is required",
-        });
+        finalSchema = (fieldSchema as z.ZodNumber).refine((val: number) => val != null, "This field is required");
       } else {
-        // For strings (text, textarea), use min(1) to ensure non-empty
-        fieldSchema = fieldSchema.min(1, {
-          message: "This field is required",
-        });
+        finalSchema = (fieldSchema as z.ZodString).min(1, "This field is required");
       }
     } else {
-      // Optional fields can be null or undefined
-      if (field.type === "number") {
-        fieldSchema = fieldSchema.nullable().optional();
-      } else {
-        fieldSchema = fieldSchema.nullable().optional();
-      }
+      finalSchema = fieldSchema.nullable().optional();
     }
 
-    schemaObject[field.id] = fieldSchema;
+    schemaObject[field.id] = finalSchema;
   }
 
   return z.object(schemaObject);

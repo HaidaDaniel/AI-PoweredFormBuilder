@@ -204,8 +204,8 @@ interface SpeechRecognitionAlternative {
 
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
+    SpeechRecognition: new (...args: unknown[]) => SpeechRecognition;
+    webkitSpeechRecognition: new (...args: unknown[]) => SpeechRecognition;
   }
 }
 

@@ -2,6 +2,13 @@
 
 A full-stack Form Builder application built with React Router v7, TypeScript, Prisma, and PostgreSQL.
 
+## Features
+
+- **Form Editor** — Create and edit forms with text, number, and textarea fields
+- **Form Preview** — Live preview while editing (50/50 split layout)
+- **AI Chat Assistant** — Edit form structure using natural language (supports OpenAI and Ollama)
+- **Voice Input** — Microphone input for AI assistant (Chrome/Edge/Safari)
+
 ## Tech Stack
 
 - **Framework**: React Router v7 (SSR)
@@ -28,6 +35,8 @@ This will:
 5. Start the dev server with HMR
 
 Open **http://localhost:5173** in your browser.
+
+**Docker + AI:** The Docker setup defaults to Ollama. Ensure Ollama is running on your host (or override with `LLM_PROVIDER=openai` and `OPENAI_API_KEY`).
 
 ### Default Admin User
 
@@ -64,6 +73,15 @@ After seeding, you can log in with the default credentials (configurable via env
    ```bash
    npm run dev
    ```
+
+### AI Chat Assistant
+
+The form editor includes an AI assistant that edits form fields from natural language (e.g., "Add a required email field", "Make name required").
+
+- **Ollama:** Set `LLM_PROVIDER=ollama`, run `ollama pull llama3.2` (or similar), and optionally set `OLLAMA_BASE_URL`, `OLLAMA_MODEL`
+- **OpenAI:** Set `LLM_PROVIDER=openai`, `OPENAI_API_KEY`, and optionally `OPENAI_MODEL` (default: `gpt-4o-mini`)
+
+See [docs/06_AI_INTEGRATION.md](docs/06_AI_INTEGRATION.md) for detailed setup and troubleshooting.
 
 ## Project Structure
 
@@ -118,6 +136,11 @@ prisma/
 | `SESSION_SECRET` | Secret for signing session cookies | `dev-secret-change-in-production` |
 | `ADMIN_EMAIL` | Email for the admin user created during seeding | `admin@admin.com` |
 | `ADMIN_PASSWORD` | Password for the admin user created during seeding | `admin123` |
+| `LLM_PROVIDER` | AI provider: `openai` or `ollama` | `ollama` (Docker) |
+| `OPENAI_API_KEY` | OpenAI API key (required if `LLM_PROVIDER=openai`) | — |
+| `OPENAI_MODEL` | OpenAI model name | `gpt-4o-mini` |
+| `OLLAMA_BASE_URL` | Ollama API base URL | `http://localhost:11434` |
+| `OLLAMA_MODEL` | Ollama model name | `llama3.2` |
 
 ## Routes & Access
 
@@ -135,7 +158,8 @@ prisma/
 | `/admin/login` | Admin sign in page (admin-only) |
 | `/admin/forms` | List all forms (create, edit, delete) |
 | `/admin/forms/new` | Create new form (empty editor) |
-| `/admin/forms/:id/edit` | Form editor with live preview (50/50 split layout) |
+| `/admin/forms/:id/edit` | Form editor with live preview and AI Assistant |
+| `/admin/results` | View form responses/submissions |
 
 **Authentication & Redirects:**
 - Unauthorized access to `/admin/*` → redirect to `/admin/login`

@@ -1,5 +1,10 @@
 import OpenAI from "openai";
-import type { LLMProvider, LLMRequest, LLMResponse } from "../types";
+import type {
+  LLMProvider,
+  LLMRequest,
+  LLMResponse,
+  FormDefinition,
+} from "../types";
 import { getLLMConfig } from "~/config/llm.server";
 
 /**

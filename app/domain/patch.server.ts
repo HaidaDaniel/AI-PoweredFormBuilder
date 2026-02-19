@@ -37,10 +37,10 @@ export function validatePatch(
         };
       }
 
-      if (op.op === "move" && !op.from) {
+      if ((op.op === "move" || op.op === "copy") && !op.from) {
         return {
           valid: false,
-          error: `Operation "move" requires a "from" field`,
+          error: `Operation "${op.op}" requires a "from" field`,
         };
       }
     }
@@ -79,21 +79,20 @@ export function applyPatch(
 
   try {
     // Convert to fast-json-patch format
-    const patchOperations: Operation[] = operations.map((op) => {
-      const patchOp: Operation = {
-        op: op.op,
-        path: op.path,
-      };
-
-      if (op.value !== undefined) {
-        patchOp.value = op.value;
+    const patchOperations: Operation[] = operations.map((op): Operation => {
+      switch (op.op) {
+        case "add":
+        case "replace":
+        case "test":
+          return { op: op.op, path: op.path, value: op.value };
+        case "move":
+        case "copy":
+          return { op: op.op, path: op.path, from: op.from! };
+        case "remove":
+          return { op: "remove", path: op.path };
+        default:
+          return { op: op.op, path: op.path } as Operation;
       }
-
-      if (op.from) {
-        patchOp.from = op.from;
-      }
-
-      return patchOp;
     });
 
     // Create a deep copy to avoid mutating the original

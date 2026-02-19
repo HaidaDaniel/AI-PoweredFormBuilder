@@ -4,7 +4,7 @@ import { prisma } from "~/db/db.server";
 import type { Route } from "./+types/admin.results";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const user = await requireAdmin(request);
+  await requireAdmin(request);
   
   const responses = await prisma.formResponse.findMany({
     include: {
@@ -24,7 +24,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 export default function ResultsPage() {
   const { responses } = useLoaderData<typeof loader>();
 
-  const formatResponseData = (valuesJson: any): string => {
+  const formatResponseData = (valuesJson: unknown): string => {
     if (!valuesJson || typeof valuesJson !== "object") {
       return String(valuesJson || "");
     }
@@ -71,7 +71,7 @@ export default function ResultsPage() {
               </tr>
             </thead>
             <tbody>
-              {responses.map((response) => (
+              {responses.map((response: (typeof responses)[number]) => (
                 <tr
                   key={response.id}
                   className="border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50"
