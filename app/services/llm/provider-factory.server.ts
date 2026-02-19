@@ -2,6 +2,7 @@ import { getLLMConfig } from "~/config/llm.server";
 import type { LLMProvider } from "./types";
 import { OpenAIProvider } from "./providers/openai.provider";
 import { OllamaProvider } from "./providers/ollama.provider";
+import { OpenRouterProvider } from "./providers/openrouter.provider";
 
 let providerInstance: LLMProvider | null = null;
 
@@ -22,6 +23,9 @@ export function getLLMProvider(): LLMProvider {
       break;
     case "ollama":
       providerInstance = new OllamaProvider();
+      break;
+    case "openrouter":
+      providerInstance = new OpenRouterProvider();
       break;
     default:
       throw new Error(`Unsupported LLM provider: ${config.provider}`);

@@ -2,13 +2,13 @@
 
 ## Overview
 
-The AI chat assistant allows admins to edit form fields using natural language instructions. The system supports both OpenAI and local Ollama providers, configured through environment variables.
+The AI chat assistant allows admins to edit form fields using natural language instructions. The system supports OpenAI, Ollama, and OpenRouter providers, configured through environment variables.
 
 ## Features
 
 - **Natural Language Form Editing**: Describe changes in plain English
 - **Voice Input**: Use microphone for hands-free input (Web Speech API)
-- **Multiple LLM Providers**: Switch between OpenAI and Ollama
+- **Multiple LLM Providers**: Switch between OpenAI, Ollama, and OpenRouter
 - **Safe Updates**: All changes are validated before applying
 - **JSON Patch Operations**: Efficient updates using JSON Patch format
 
@@ -20,7 +20,7 @@ Add the following variables to your `.env` file:
 
 ```env
 # LLM Provider Configuration
-LLM_PROVIDER=openai  # or "ollama"
+LLM_PROVIDER=openai  # or "ollama" or "openrouter"
 
 # OpenAI Configuration (if using OpenAI)
 OPENAI_API_KEY=sk-your-api-key-here
@@ -29,6 +29,10 @@ OPENAI_MODEL=gpt-4o-mini
 # Ollama Configuration (if using Ollama)
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.2
+
+# OpenRouter Configuration (if using OpenRouter)
+OPENROUTER_API_KEY=sk-or-your-api-key-here
+OPENROUTER_MODEL=openai/gpt-4o-mini
 ```
 
 ### OpenAI Setup
@@ -45,6 +49,13 @@ OLLAMA_MODEL=llama3.2
 3. Set `LLM_PROVIDER=ollama`
 4. Optionally set `OLLAMA_BASE_URL` (default: `http://localhost:11434`)
 5. Optionally set `OLLAMA_MODEL` (default: `llama3.2`)
+
+### OpenRouter Setup
+
+1. Get an API key from [OpenRouter](https://openrouter.ai/keys)
+2. Set `LLM_PROVIDER=openrouter`
+3. Set `OPENROUTER_API_KEY` (or `OPEN_ROUTER_API_KEY`) to your API key
+4. Optionally set `OPENROUTER_MODEL` (default: `openai/gpt-4o-mini`). Use OpenRouter model IDs such as `anthropic/claude-3-haiku`, `google/gemini-flash-1.5`, etc.
 
 ## Usage
 
@@ -135,6 +146,7 @@ The AI understands three field types:
 - Check that `LLM_PROVIDER` is set correctly
 - For OpenAI: Ensure `OPENAI_API_KEY` is set
 - For Ollama: Ensure Ollama is running and accessible
+- For OpenRouter: Ensure `OPENROUTER_API_KEY` (or `OPEN_ROUTER_API_KEY`) is set
 
 ### Voice Input Not Working
 

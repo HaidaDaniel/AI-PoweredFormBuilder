@@ -3,7 +3,7 @@
  * Reads and validates environment variables for LLM provider setup
  */
 
-export type LLMProviderType = "openai" | "ollama";
+export type LLMProviderType = "openai" | "ollama" | "openrouter";
 
 export interface LLMConfig {
   provider: LLMProviderType;
@@ -15,6 +15,10 @@ export interface LLMConfig {
     baseUrl: string;
     model: string;
   };
+  openrouter?: {
+    apiKey: string;
+    model: string;
+  };
 }
 
 /**
@@ -24,9 +28,9 @@ export interface LLMConfig {
 export function getLLMConfig(): LLMConfig {
   const provider = (process.env.LLM_PROVIDER || "openai") as LLMProviderType;
 
-  if (provider !== "openai" && provider !== "ollama") {
+  if (provider !== "openai" && provider !== "ollama" && provider !== "openrouter") {
     throw new Error(
-      `Invalid LLM_PROVIDER: ${provider}. Must be "openai" or "ollama"`
+      `Invalid LLM_PROVIDER: ${provider}. Must be "openai", "ollama", or "openrouter"`
     );
   }
 
@@ -48,6 +52,19 @@ export function getLLMConfig(): LLMConfig {
     config.ollama = {
       baseUrl: process.env.OLLAMA_BASE_URL || "http://localhost:11434",
       model: process.env.OLLAMA_MODEL || "llama3.2",
+    };
+  } else if (provider === "openrouter") {
+    const apiKey =
+      process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "OPENROUTER_API_KEY (or OPEN_ROUTER_API_KEY) is required when LLM_PROVIDER is set to 'openrouter'"
+      );
+    }
+
+    config.openrouter = {
+      apiKey,
+      model: process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini",
     };
   }
 

@@ -6,7 +6,7 @@ A full-stack Form Builder application built with React Router v7, TypeScript, Pr
 
 - **Form Editor** — Create and edit forms with text, number, and textarea fields
 - **Form Preview** — Live preview while editing (50/50 split layout)
-- **AI Chat Assistant** — Edit form structure using natural language (supports OpenAI and Ollama)
+- **AI Chat Assistant** — Edit form structure using natural language (supports OpenAI, Ollama, and OpenRouter)
 - **Voice Input** — Microphone input for AI assistant (Chrome/Edge/Safari)
 
 ## Tech Stack
@@ -36,7 +36,7 @@ This will:
 
 Open **http://localhost:5173** in your browser.
 
-**Docker + AI:** The Docker setup defaults to Ollama. Ensure Ollama is running on your host (or override with `LLM_PROVIDER=openai` and `OPENAI_API_KEY`).
+**Docker + AI:** The Docker setup defaults to Ollama. Ensure Ollama is running on your host (or override with `LLM_PROVIDER=openai`, `LLM_PROVIDER=openrouter`, and respective API keys).
 
 ### Default Admin User
 
@@ -80,6 +80,7 @@ The form editor includes an AI assistant that edits form fields from natural lan
 
 - **Ollama:** Set `LLM_PROVIDER=ollama`, run `ollama pull llama3.2` (or similar), and optionally set `OLLAMA_BASE_URL`, `OLLAMA_MODEL`
 - **OpenAI:** Set `LLM_PROVIDER=openai`, `OPENAI_API_KEY`, and optionally `OPENAI_MODEL` (default: `gpt-4o-mini`)
+- **OpenRouter:** Set `LLM_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, and optionally `OPENROUTER_MODEL` (default: `openai/gpt-4o-mini`)
 
 See [docs/06_AI_INTEGRATION.md](docs/06_AI_INTEGRATION.md) for detailed setup and troubleshooting.
 
@@ -136,9 +137,11 @@ prisma/
 | `SESSION_SECRET` | Secret for signing session cookies | `dev-secret-change-in-production` |
 | `ADMIN_EMAIL` | Email for the admin user created during seeding | `admin@admin.com` |
 | `ADMIN_PASSWORD` | Password for the admin user created during seeding | `admin123` |
-| `LLM_PROVIDER` | AI provider: `openai` or `ollama` | `ollama` (Docker) |
+| `LLM_PROVIDER` | AI provider: `openai`, `ollama`, or `openrouter` | `ollama` (Docker) |
 | `OPENAI_API_KEY` | OpenAI API key (required if `LLM_PROVIDER=openai`) | — |
 | `OPENAI_MODEL` | OpenAI model name | `gpt-4o-mini` |
+| `OPENROUTER_API_KEY` | OpenRouter API key (required if `LLM_PROVIDER=openrouter`) | — |
+| `OPENROUTER_MODEL` | OpenRouter model ID (e.g. `openai/gpt-4o-mini`) | `openai/gpt-4o-mini` |
 | `OLLAMA_BASE_URL` | Ollama API base URL | `http://localhost:11434` |
 | `OLLAMA_MODEL` | Ollama model name | `llama3.2` |
 

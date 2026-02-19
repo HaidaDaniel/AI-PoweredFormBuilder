@@ -17,6 +17,9 @@ export async function performLLMStartupCheck(): Promise<void> {
   if (config.provider === "openai") {
     console.log(`   Model: ${config.openai?.model || "N/A"}`);
     console.log(`   API Key: ${config.openai?.apiKey ? "✅ Set" : "❌ Missing"}`);
+  } else if (config.provider === "openrouter") {
+    console.log(`   Model: ${config.openrouter?.model || "N/A"}`);
+    console.log(`   API Key: ${config.openrouter?.apiKey ? "✅ Set" : "❌ Missing"}`);
   } else if (config.provider === "ollama") {
     console.log(`   Base URL: ${config.ollama?.baseUrl || "N/A"}`);
     console.log(`   Model: ${config.ollama?.model || "N/A"}`);
