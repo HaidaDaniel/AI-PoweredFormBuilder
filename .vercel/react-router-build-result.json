@@ -1,0 +1,320 @@
+{
+  "buildManifest": {
+    "serverBundles": {
+      "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0": {
+        "id": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+        "file": "build/server/nodejs_eyJydW50aW1lIjoibm9kZWpzIn0/index.js",
+        "config": {
+          "runtime": "nodejs"
+        }
+      }
+    },
+    "routeIdToServerBundleId": {
+      "routes/home": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/logout": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/forms": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/forms.$id": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/admin.login": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/admin._index": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/admin.forms": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/admin.forms.manage": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/admin.forms.$id": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/admin.forms.$id.ai-chat": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/admin.results": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0"
+    },
+    "routes": {
+      "root": {
+        "id": "root",
+        "file": "app/root.tsx",
+        "path": "",
+        "config": {}
+      },
+      "routes/home": {
+        "id": "routes/home",
+        "parentId": "root",
+        "file": "app/routes/home.tsx",
+        "index": true,
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/logout": {
+        "id": "routes/logout",
+        "parentId": "root",
+        "file": "app/routes/logout.tsx",
+        "path": "logout",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/public-layout": {
+        "id": "routes/public-layout",
+        "parentId": "root",
+        "file": "app/routes/public-layout.tsx",
+        "config": {}
+      },
+      "routes/forms": {
+        "id": "routes/forms",
+        "parentId": "routes/public-layout",
+        "file": "app/routes/forms.tsx",
+        "path": "forms",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/forms.$id": {
+        "id": "routes/forms.$id",
+        "parentId": "routes/public-layout",
+        "file": "app/routes/forms.$id.tsx",
+        "path": "forms/:id",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/admin.login": {
+        "id": "routes/admin.login",
+        "parentId": "root",
+        "file": "app/routes/admin.login.tsx",
+        "path": "admin/login",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/admin-layout": {
+        "id": "routes/admin-layout",
+        "parentId": "root",
+        "file": "app/routes/admin-layout.tsx",
+        "config": {}
+      },
+      "routes/admin._index": {
+        "id": "routes/admin._index",
+        "parentId": "routes/admin-layout",
+        "file": "app/routes/admin._index.tsx",
+        "path": "admin",
+        "index": true,
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/admin.forms": {
+        "id": "routes/admin.forms",
+        "parentId": "routes/admin-layout",
+        "file": "app/routes/admin.forms.tsx",
+        "path": "admin/forms",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/admin.forms.manage": {
+        "id": "routes/admin.forms.manage",
+        "parentId": "routes/admin-layout",
+        "file": "app/routes/admin.forms.manage.tsx",
+        "path": "admin/forms/manage",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/admin.forms.$id": {
+        "id": "routes/admin.forms.$id",
+        "parentId": "routes/admin-layout",
+        "file": "app/routes/admin.forms.$id.tsx",
+        "path": "admin/forms/:id",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/admin.forms.$id.ai-chat": {
+        "id": "routes/admin.forms.$id.ai-chat",
+        "parentId": "routes/admin-layout",
+        "file": "app/routes/admin.forms.$id.ai-chat.ts",
+        "path": "admin/forms/:id/ai-chat",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/admin.results": {
+        "id": "routes/admin.results",
+        "parentId": "routes/admin-layout",
+        "file": "app/routes/admin.results.tsx",
+        "path": "admin/results",
+        "config": {
+          "runtime": "nodejs"
+        }
+      }
+    }
+  },
+  "reactRouterConfig": {
+    "appDirectory": "C:/repos/AI-PoweredFormBuilder/app",
+    "basename": "/",
+    "buildDirectory": "C:/repos/AI-PoweredFormBuilder/build",
+    "future": {
+      "unstable_optimizeDeps": false,
+      "unstable_subResourceIntegrity": false,
+      "unstable_trailingSlashAwareDataRequests": false,
+      "v8_middleware": false,
+      "v8_splitRouteModules": false,
+      "v8_viteEnvironmentApi": false
+    },
+    "routes": {
+      "root": {
+        "id": "root",
+        "file": "root.tsx",
+        "path": ""
+      },
+      "routes/home": {
+        "id": "routes/home",
+        "parentId": "root",
+        "file": "routes/home.tsx",
+        "index": true
+      },
+      "routes/logout": {
+        "id": "routes/logout",
+        "parentId": "root",
+        "file": "routes/logout.tsx",
+        "path": "logout"
+      },
+      "routes/public-layout": {
+        "id": "routes/public-layout",
+        "parentId": "root",
+        "file": "routes/public-layout.tsx"
+      },
+      "routes/forms": {
+        "id": "routes/forms",
+        "parentId": "routes/public-layout",
+        "file": "routes/forms.tsx",
+        "path": "forms"
+      },
+      "routes/forms.$id": {
+        "id": "routes/forms.$id",
+        "parentId": "routes/public-layout",
+        "file": "routes/forms.$id.tsx",
+        "path": "forms/:id"
+      },
+      "routes/admin.login": {
+        "id": "routes/admin.login",
+        "parentId": "root",
+        "file": "routes/admin.login.tsx",
+        "path": "admin/login"
+      },
+      "routes/admin-layout": {
+        "id": "routes/admin-layout",
+        "parentId": "root",
+        "file": "routes/admin-layout.tsx"
+      },
+      "routes/admin._index": {
+        "id": "routes/admin._index",
+        "parentId": "routes/admin-layout",
+        "file": "routes/admin._index.tsx",
+        "path": "admin",
+        "index": true
+      },
+      "routes/admin.forms": {
+        "id": "routes/admin.forms",
+        "parentId": "routes/admin-layout",
+        "file": "routes/admin.forms.tsx",
+        "path": "admin/forms"
+      },
+      "routes/admin.forms.manage": {
+        "id": "routes/admin.forms.manage",
+        "parentId": "routes/admin-layout",
+        "file": "routes/admin.forms.manage.tsx",
+        "path": "admin/forms/manage"
+      },
+      "routes/admin.forms.$id": {
+        "id": "routes/admin.forms.$id",
+        "parentId": "routes/admin-layout",
+        "file": "routes/admin.forms.$id.tsx",
+        "path": "admin/forms/:id"
+      },
+      "routes/admin.forms.$id.ai-chat": {
+        "id": "routes/admin.forms.$id.ai-chat",
+        "parentId": "routes/admin-layout",
+        "file": "routes/admin.forms.$id.ai-chat.ts",
+        "path": "admin/forms/:id/ai-chat"
+      },
+      "routes/admin.results": {
+        "id": "routes/admin.results",
+        "parentId": "routes/admin-layout",
+        "file": "routes/admin.results.tsx",
+        "path": "admin/results"
+      }
+    },
+    "routeDiscovery": {
+      "mode": "lazy",
+      "manifestPath": "/__manifest"
+    },
+    "serverBuildFile": "index.js",
+    "serverModuleFormat": "esm",
+    "ssr": true,
+    "allowedActionOrigins": false,
+    "unstable_routeConfig": [
+      {
+        "id": "root",
+        "path": "",
+        "file": "root.tsx",
+        "children": [
+          {
+            "file": "routes/home.tsx",
+            "index": true
+          },
+          {
+            "file": "routes/logout.tsx",
+            "path": "logout"
+          },
+          {
+            "file": "routes/public-layout.tsx",
+            "children": [
+              {
+                "file": "routes/forms.tsx",
+                "path": "forms"
+              },
+              {
+                "file": "routes/forms.$id.tsx",
+                "path": "forms/:id"
+              }
+            ]
+          },
+          {
+            "file": "routes/admin.login.tsx",
+            "path": "admin/login"
+          },
+          {
+            "file": "routes/admin-layout.tsx",
+            "children": [
+              {
+                "file": "routes/admin._index.tsx",
+                "index": true,
+                "path": "admin"
+              },
+              {
+                "file": "routes/admin.forms.tsx",
+                "path": "admin/forms"
+              },
+              {
+                "file": "routes/admin.forms.manage.tsx",
+                "path": "admin/forms/manage"
+              },
+              {
+                "file": "routes/admin.forms.$id.tsx",
+                "path": "admin/forms/:id"
+              },
+              {
+                "file": "routes/admin.forms.$id.ai-chat.ts",
+                "path": "admin/forms/:id/ai-chat"
+              },
+              {
+                "file": "routes/admin.results.tsx",
+                "path": "admin/results"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "viteConfig": {
+    "build": {
+      "assetsDir": "assets"
+    }
+  }
+}

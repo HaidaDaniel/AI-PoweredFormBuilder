@@ -22,8 +22,8 @@ if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
 
-// Perform LLM startup check (non-blocking)
-if (typeof globalThis !== "undefined") {
+// Perform LLM startup check (non-blocking) — skip on Vercel (Ollama won't be available)
+if (typeof globalThis !== "undefined" && process.env.VERCEL !== "1") {
   import("~/utils/llm-startup-check.server")
     .then((module) => module.performLLMStartupCheck())
     .catch((err) => {
